@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Imposter Keda?</title>
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --text-color: #1a202c;
+            --primary: #FF4136;
+            --secondary: #0074D9;
+            --accent: #FFDC00;
+            --card-bg: rgba(255, 255, 255, 0.8);
+            --blur: blur(10px);
+            --font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        html.dark {
+            --bg-color: #1a202c;
+            --text-color: #f0f4f8;
+            --primary: #FF851B;
+            --secondary: #39CCCC;
+            --accent: #F012BE;
+            --card-bg: rgba(0, 0, 0, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            transition: var(--transition);
+        }
+
+        /* Playful Background Animation */
+        .bg-shapes {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .shape {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            opacity: 0.1;
+            animation: float 20s infinite alternate linear;
+            filter: var(--blur);
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+            50% { transform: translate(50vw, 50vh) scale(1.5) rotate(180deg); }
+            100% { transform: translate(-20vw, 80vh) scale(0.8) rotate(360deg); }
+        }
+
+        /* Layout & Screens */
+        #app {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 20px;
+            animation: fadeIn 0.5s ease-out;
+            text-align: center;
+            overflow-y: auto;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Typography */
+        h1 { font-size: 3rem; margin-bottom: 20px; text-shadow: 2px 2px var(--accent); color: var(--primary); }
+        h2 { font-size: 2rem; margin-bottom: 15px; }
+        p { margin-bottom: 10px; font-size: 1.2rem; }
+
+        /* UI Components */
+        input {
+            padding: 15px 20px;
+            border-radius: 30px;
+            border: 3px solid var(--secondary);
+            font-size: 1.2rem;
+            outline: none;
+            font-family: inherit;
+            background: var(--card-bg);
+            color: var(--text-color);
+            margin-bottom: 15px;
+            width: 100%;
+            max-width: 300px;
+            text-align: center;
+            transition: var(--transition);
+            backdrop-filter: var(--blur);
+        }
+        input:focus { border-color: var(--primary); transform: scale(1.05); box-shadow: 0 0 15px var(--primary); }
+
+        button {
+            padding: 15px 30px;
+            border-radius: 30px;
+            border: none;
+            font-size: 1.2rem;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: var(--transition);
+            margin: 5px;
+        }
+        button:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+        button:active { transform: translateY(2px) scale(0.95); }
+        
+        button.secondary { background: var(--secondary); }
+        button.accent { background: var(--accent); color: #333; }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: var(--blur);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 2px solid rgba(255,255,255,0.2);
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Header UI (Time, Settings) */
+        .top-bar {
+            position: absolute;
+            top: 10px; left: 10px; right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .info-pill {
+            background: var(--card-bg);
+            backdrop-filter: var(--blur);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .icon-btn {
+            background: var(--card-bg);
+            border: none;
+            border-radius: 50%;
+            width: 45px; height: 45px;
+            font-size: 1.5rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            transition: var(--transition);
+        }
+        .icon-btn:hover { transform: rotate(15deg) scale(1.1); }
+
+        /* Swipe / Slide to confirm */
+        .swipe-container {
+            width: 100%;
+            height: 60px;
+            background: #e0e0e0;
+            border-radius: 30px;
+            position: relative;
+            overflow: hidden;
+            margin-top: 20px;
+            box-shadow: inset 0 3px 10px rgba(0,0,0,0.1);
+        }
+        .swipe-btn {
+            position: absolute;
+            top: 0; left: 0;
+            width: 60px; height: 60px;
+            background: var(--primary);
+            border-radius: 50%;
+            color: white;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.5rem;
+            cursor: grab;
+            z-index: 2;
+            transition: background 0.3s;
+        }
+        .swipe-text {
+            position: absolute;
+            width: 100%;
+            line-height: 60px;
+            text-align: center;
+            color: #666;
+            font-weight: bold;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* Cards Shuffle Animation */
+        .deck {
+            position: relative;
+            width: 200px; height: 300px;
+            margin: 20px auto;
+            perspective: 1000px;
+        }
+        .playing-card {
+            position: absolute;
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            border-radius: 15px;
+            border: 4px solid white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 4rem;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+        .playing-card.shuffling { animation: shuffle 0.5s infinite alternate; }
+        @keyframes shuffle {
+            0% { transform: translateX(0) rotate(-5deg); }
+            100% { transform: translateX(20px) rotate(5deg); }
+        }
+        .playing-card .back, .playing-card .front {
+            position: absolute;
+            width: 100%; height: 100%;
+            backface-visibility: hidden;
+            display: flex; justify-content: center; align-items: center;
+            border-radius: 11px;
+            flex-direction: column;
+            text-align: center;
+            padding: 10px;
+        }
+        .playing-card .front {
+            background: white; color: var(--text-color);
+            transform: rotateY(180deg);
+        }
+        .playing-card.revealed { transform: rotateY(180deg) scale(1.1); box-shadow: 0 15px 30px rgba(0,0,0,0.4); z-index: 10; }
+
+        /* Players List / P2P Chat */
+        .player-list {
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 20px;
+        }
+        .player-chip {
+            background: var(--card-bg);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 2px solid var(--primary);
+            font-weight: bold;
+            display: flex; align-items: center; gap: 5px;
+        }
+        .player-chip.my-turn {
+            animation: blinker 1s linear infinite;
+            border-color: var(--accent);
+            background: var(--accent);
+        }
+        @keyframes blinker { 50% { opacity: 0.5; transform: scale(1.05); } }
+
+        .chat-box {
+            height: 150px;
+            width: 100%;
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex; flex-direction: column; gap: 5px;
+            text-align: left;
+        }
+        .chat-msg {
+            background: var(--card-bg); padding: 8px 12px; border-radius: 15px; font-size: 0.9rem;
+            align-self: flex-start; max-width: 80%;
+        }
+        .chat-msg.self { align-self: flex-end; background: var(--secondary); color: white; }
+
+        /* God Mode Modal */
+        #godModeModal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(15px);
+            z-index: 999;
+            display: none;
+            justify-content: center; align-items: center;
+            color: #0f0; font-family: monospace;
+        }
+        #godModeModal.visible { display: flex; animation: hackerIn 0.5s; }
+        @keyframes hackerIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        
+        .god-card {
+            background: #111; border: 2px solid #0f0; padding: 20px; border-radius: 10px; width: 90%; max-width: 500px;
+            text-align: left;
+            box-shadow: 0 0 20px #0f0;
+        }
+        
+        /* Modals & Toasts */
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
+            background: var(--text-color); color: var(--bg-color);
+            padding: 10px 20px; border-radius: 20px; font-weight: bold;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* History Table */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; border-bottom: 1px solid rgba(128,128,128,0.2); text-align: left; }
+        th { color: var(--primary); }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .text-sm { font-size: 0.8rem; opacity: 0.8; }
+        .mt-4 { margin-top: 1rem; }
+        .flex-row { display: flex; gap: 10px; width: 100%; justify-content: center; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Playful Background Shapes -->
+    <div class="bg-shapes">
+        <div class="shape" style="width: 300px; height: 300px; top: -100px; left: -100px;"></div>
+        <div class="shape" style="width: 200px; height: 200px; bottom: 20%; right: -50px; background: linear-gradient(45deg, var(--accent), var(--secondary)); animation-delay: -5s;"></div>
+        <div class="shape" style="width: 150px; height: 150px; top: 40%; left: 30%; background: linear-gradient(45deg, var(--primary), var(--accent)); animation-delay: -10s;"></div>
+    </div>
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="info-pill" id="clockPill">Loading...</div>
+        <div style="display:flex; gap: 10px;">
+            <button class="icon-btn" onclick="toggleTheme()" aria-label="Toggle Theme">🌓</button>
+            <button class="icon-btn" id="faqBtn" aria-label="FAQ">❓</button>
+            <button class="icon-btn" onclick="showScreen('historyScreen')" aria-label="History">📜</button>
+        </div>
+    </div>
+
+    <div id="app">
+        
+        <!-- Screen 1: Login -->
+        <div class="screen active" id="loginScreen">
+            <h1 class="bounce">Imposter Keda? 🕵️‍♂️</h1>
+            <div class="card">
+                <h2>Who are you?</h2>
+                <div id="historyNames" class="player-list"></div>
+                <input type="text" id="playerName" placeholder="Enter your funky name..." maxlength="15">
+                <button onclick="login()">Enter Lobby 🚀</button>
+            </div>
+        </div>
+
+        <!-- Screen 2: Lobby -->
+        <div class="screen" id="lobbyScreen">
+            <h1>Lobby 🏠</h1>
+            <div class="card">
+                <h3 id="lobbyWelcome">Welcome!</h3>
+                <p class="text-sm">Room Stay: <span id="roomStayTimer">00:00</span></p>
+                
+                <div class="flex-row">
+                    <button class="secondary" onclick="createRoom()">Create Room</button>
+                    <button class="accent" onclick="joinRoomPrompt()">Join Room</button>
+                </div>
+                
+                <div id="roomDetails" class="hidden mt-4">
+                    <h3>Room Code: <span id="roomCodeDisplay" style="color:var(--primary); font-family:monospace; font-size:1.5rem;"></span></h3>
+                    <button onclick="shareLink()" class="secondary" style="font-size: 0.9rem; padding: 10px;">🔗 Share Link</button>
+                    
+                    <h4 class="mt-4">Players (<span id="playerCount">1</span>/8)</h4>
+                    <div class="player-list" id="lobbyPlayers">
+                        <div class="player-chip">You 👑</div>
+                    </div>
+
+                    <div class="chat-box" id="lobbyChat">
+                        <div class="chat-msg">System: Waiting for players...</div>
+                    </div>
+                    <div style="display:flex; gap:5px; width:100%;">
+                        <input type="text" id="chatInput" placeholder="Say hi..." style="margin:0; padding:10px; font-size:1rem;">
+                        <button onclick="sendChat()" style="margin:0; padding:10px;">Send</button>
+                    </div>
+
+                    <div class="swipe-container" id="startGameSwipe">
+                        <div class="swipe-text">Slide to Start Game ➡️</div>
+                        <div class="swipe-btn">🎮</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 3: Role Selection (Illusion) -->
+        <div class="screen" id="roleScreen">
+            <h1>Pick a Card 🃏</h1>
+            <p>Your fate awaits... (Swipe card to reveal)</p>
+            <div class="deck" id="cardDeck" onclick="revealRole()">
+                <div class="playing-card shuffling">
+                    <div class="back">❓</div>
+                    <div class="front" id="roleFront">
+                        <h2 id="roleTitle" style="color: black;">Civilian</h2>
+                        <p id="wordReveal">Word: Apple</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-sm mt-4">Hint: Pretend you had a choice! 😉</p>
+            <button class="hidden mt-4" id="continueToGameBtn" onclick="enterGameplay()">Enter Game 🏃</button>
+        </div>
+
+        <!-- Screen 4: Gameplay -->
+        <div class="screen" id="gameScreen">
+            <h2>Round <span id="roundNum">1</span>/3</h2>
+            <div class="info-pill" style="margin-bottom:15px; background:var(--primary); color:white;">
+                Time left: <span id="turnTimer">30</span>s
+            </div>
+
+            <div class="card">
+                <h3>Category: <span id="categoryName" style="color:var(--secondary)">Food 🍔</span></h3>
+                <p class="text-sm">Describe the word without saying it!</p>
+                
+                <div class="player-list mt-4" id="gamePlayers">
+                    <!-- Populated dynamically -->
+                </div>
+
+                <div class="flex-row mt-4">
+                    <button id="passBtn" class="secondary" onclick="passTurn()">Pass Turn ⏭️</button>
+                    <button class="accent" onclick="voteTimeExtend()">Vote +Time ⏳</button>
+                </div>
+                <p class="text-sm mt-4" id="passStatus">0/2 passes to end turn</p>
+            </div>
+
+            <button class="mt-4" onclick="endGameMock()" style="background: #ff4136;">End Game (Dev) 🛑</button>
+        </div>
+
+        <!-- Screen 5: Voting & Results -->
+        <div class="screen" id="voteScreen">
+            <h1 class="bounce">Time to Vote! 🗳️</h1>
+            <div class="card">
+                <h3>Who is the Imposter?</h3>
+                <div id="votingList" class="player-list mt-4" style="flex-direction:column;">
+                    <!-- Vote buttons -->
+                </div>
+                <div id="voteResults" class="hidden mt-4">
+                    <h2 class="bounce" id="imposterRevealText" style="color:var(--primary); font-size:2.5rem;">Player 2 was the Imposter!</h2>
+                    <p>Score: <span style="color:var(--secondary); font-weight:bold;">+100 pts</span></p>
+                    <button class="mt-4" onclick="showScreen('lobbyScreen')">Play Again in Room 🔄</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 6: History Logs -->
+        <div class="screen" id="historyScreen">
+            <h1>All-Time Logs 📖</h1>
+            <div class="card" style="max-width:600px; height:60vh; overflow-y:auto; display:block;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Role</th>
+                            <th>Outcome</th>
+                            <th>Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- Mock Data -->
+                        <tr><td>Today 10:00</td><td>Imposter</td><td>Win</td><td>+200</td></tr>
+                        <tr><td>Yesterday</td><td>Civilian</td><td>Lose</td><td>-50</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <button class="mt-4" onclick="showScreen('lobbyScreen')">Back 🔙</button>
+        </div>
+
+    </div>
+
+    <!-- God Mode Modal -->
+    <div id="godModeModal">
+        <div class="god-card">
+            <h2 style="color:#0f0; margin-bottom:10px; border-bottom:1px solid #0f0; padding-bottom:5px;">/// GOD MODE ACTIVATED ///</h2>
+            <p><strong>Room ID:</strong> <span id="gmRoom">XYZ123</span></p>
+            <p><strong>Actual Imposter:</strong> Player 2</p>
+            <p><strong>Word:</strong> Watermelon</p>
+            <p><strong>Player States:</strong></p>
+            <ul style="list-style:none; padding-left:10px; font-size:0.9rem;" id="gmPlayers">
+                <li>[P1] You - Civilian - Passed: No</li>
+                <li>[P2] Dave - Imposter - Passed: Yes</li>
+                <li>[P3] Sarah - Civilian - Passed: No</li>
+            </ul>
+            <p class="mt-4" style="font-size:0.8rem;">Tap outside to close.</p>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast">Action Confirmed!</div>
+
+    <!-- Audio Effects (Placeholder links) -->
+    <!-- Using base64 tiny blips or public domain sounds to avoid missing files -->
+    <audio id="clickSound" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+    <audio id="swipeSound" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"></audio>
+
+    <script>
+        // State
+        const state = {
+            playerName: '',
+            roomCode: '',
+            isHost: false,
+            role: '', // 'imposter' or 'civilian'
+            word: '',
+            theme: localStorage.getItem('theme') || 'light',
+            roomStartTime: null,
+            faqTaps: 0,
+            players: [
+                { id: 1, name: 'You', isMe: true },
+                { id: 2, name: 'Dave' },
+                { id: 3, name: 'Sarah' }
+            ]
+        };
+
+        const words = {
+            'Food': ['Apple', 'Pizza', 'Sushi', 'Burger', 'Taco'],
+            'Animals': ['Lion', 'Penguin', 'Elephant', 'Snake', 'Dog'],
+            'Places': ['Beach', 'Mountain', 'City', 'Forest', 'Desert']
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            updateClock();
+            setInterval(updateClock, 1000);
+            loadNameHistory();
+            
+            // Check session resume
+            if(sessionStorage.getItem('inGame') === 'true') {
+                state.playerName = sessionStorage.getItem('playerName');
+                showScreen('gameScreen');
+                showToast("Resumed game session!");
+            }
+        });
+
+        // Global Click Sound
+        document.body.addEventListener('click', (e) => {
+            if(e.target.tagName === 'BUTTON' || e.target.classList.contains('playing-card')) {
+                playSound('clickSound');
+            }
+        });
+
+        function playSound(id) {
+            try {
+                const s = document.getElementById(id);
+                s.currentTime = 0;
+                s.play().catch(e=>{}); // ignore autoplay policy errors
+            } catch(e) {}
+        }
+
+        // Clock & Timer
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clockPill').innerText = now.toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
+            
+            if (state.roomStartTime) {
+                const diff = Math.floor((now - state.roomStartTime) / 1000);
+                const m = String(Math.floor(diff / 60)).padStart(2, '0');
+                const s = String(diff % 60).padStart(2, '0');
+                document.getElementById('roomStayTimer').innerText = `${m}:${s}`;
+            }
+        }
+
+        // Theme
+        function initTheme() {
+            document.documentElement.className = state.theme;
+        }
+        function toggleTheme() {
+            state.theme = state.theme === 'light' ? 'dark' : 'light';
+            document.documentElement.className = state.theme;
+            localStorage.setItem('theme', state.theme);
+        }
+
+        // Navigation
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // Login Logic
+        function loadNameHistory() {
+            let history = JSON.parse(localStorage.getItem('nameHistory') || '[]');
+            const container = document.getElementById('historyNames');
+            container.innerHTML = '';
+            history.forEach(name => {
+                const btn = document.createElement('div');
+                btn.className = 'player-chip';
+                btn.style.cursor = 'pointer';
+                btn.innerText = name;
+                btn.onclick = () => { document.getElementById('playerName').value = name; };
+                container.appendChild(btn);
+            });
+        }
+
+        function login() {
+            const name = document.getElementById('playerName').value.trim();
+            if(!name) return showToast("Enter a name first!");
+            state.playerName = name;
+            
+            let history = JSON.parse(localStorage.getItem('nameHistory') || '[]');
+            if(!history.includes(name)) {
+                history.push(name);
+                if(history.length > 5) history.shift();
+                localStorage.setItem('nameHistory', JSON.stringify(history));
+            }
+            
+            document.getElementById('lobbyWelcome').innerText = `Sup, ${name}! 👋`;
+            showScreen('lobbyScreen');
+        }
+
+        // Room Logic
+        function createRoom() {
+            state.isHost = true;
+            state.roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            state.roomStartTime = new Date();
+            document.getElementById('roomCodeDisplay').innerText = state.roomCode;
+            document.getElementById('roomDetails').classList.remove('hidden');
+            showToast("Room created!");
+            initSwipeToStart();
+        }
+
+        function joinRoomPrompt() {
+            const code = prompt("Enter 6-digit Room Code:");
+            if(code && code.length > 3) {
+                state.isHost = false;
+                state.roomCode = code.toUpperCase();
+                state.roomStartTime = new Date();
+                document.getElementById('roomCodeDisplay').innerText = state.roomCode;
+                document.getElementById('roomDetails').classList.remove('hidden');
+                document.getElementById('startGameSwipe').style.display = 'none'; // Only host can start
+                showToast("Joined Room " + state.roomCode);
+            }
+        }
+
+        function shareLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${state.roomCode}`;
+            navigator.clipboard.writeText(url).then(() => showToast("Link Copied! 🔗"));
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chatInput');
+            if(!input.value) return;
+            const chatBox = document.getElementById('lobbyChat');
+            const msg = document.createElement('div');
+            msg.className = 'chat-msg self';
+            msg.innerText = `${state.playerName}: ${input.value}`;
+            chatBox.appendChild(msg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            input.value = '';
+            
+            // Auto reply mock
+            setTimeout(() => {
+                const rpy = document.createElement('div');
+                rpy.className = 'chat-msg';
+                rpy.innerText = `Dave: LOL`;
+                chatBox.appendChild(rpy);
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }, 1500);
+        }
+
+        // Swipe To Start (Custom implementation for mobile/desktop)
+        function initSwipeToStart() {
+            const btn = document.querySelector('.swipe-btn');
+            const container = document.querySelector('.swipe-container');
+            let isDragging = false;
+            let startX = 0;
+
+            const startDrag = (e) => {
+                isDragging = true;
+                startX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+                btn.style.transition = 'none';
+            };
+
+            const drag = (e) => {
+                if(!isDragging) return;
+                e.preventDefault();
+                const currentX = e.type.includes('mouse') ? e.pageX : e.touches[0].pageX;
+                let moveX = currentX - startX;
+                const maxMove = container.offsetWidth - btn.offsetWidth;
+                
+                if(moveX < 0) moveX = 0;
+                if(moveX > maxMove) moveX = maxMove;
+                
+                btn.style.transform = `translateX(${moveX}px)`;
+                
+                if(moveX >= maxMove - 5) {
+                    isDragging = false;
+                    btn.style.background = '#2ECC40';
+                    playSound('swipeSound');
+                    setTimeout(() => startGame(), 300);
+                }
+            };
+
+            const endDrag = () => {
+                if(!isDragging) return;
+                isDragging = false;
+                btn.style.transition = 'transform 0.3s';
+                btn.style.transform = `translateX(0px)`;
+            };
+
+            btn.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', endDrag);
+
+            btn.addEventListener('touchstart', startDrag, {passive: false});
+            document.addEventListener('touchmove', drag, {passive: false});
+            document.addEventListener('touchend', endDrag);
+        }
+
+        // Game Flow
+        function startGame() {
+            sessionStorage.setItem('inGame', 'true');
+            sessionStorage.setItem('playerName', state.playerName);
+            
+            // Illusion of choice - assign random role regardless
+            const categories = Object.keys(words);
+            const cat = categories[Math.floor(Math.random() * categories.length)];
+            const wordList = words[cat];
+            state.word = wordList[Math.floor(Math.random() * wordList.length)];
+            state.role = Math.random() > 0.7 ? 'imposter' : 'civilian';
+            
+            document.getElementById('categoryName').innerText = cat;
+            
+            showScreen('roleScreen');
+        }
+
+        function revealRole() {
+            const card = document.querySelector('.playing-card');
+            if(card.classList.contains('revealed')) return;
+            
+            card.classList.remove('shuffling');
+            
+            document.getElementById('roleTitle').innerText = state.role === 'imposter' ? 'IMPOSTER 😈' : 'Civilian 👤';
+            document.getElementById('roleTitle').style.color = state.role === 'imposter' ? 'var(--primary)' : 'var(--secondary)';
+            document.getElementById('wordReveal').innerText = state.role === 'imposter' ? 'Figure out the word!' : `Word: ${state.word}`;
+            
+            if(state.role === 'imposter') {
+                document.documentElement.className = 'dark'; // Dramatic theme change
+                document.documentElement.style.setProperty('--primary', '#FF4136');
+            }
+
+            card.classList.add('revealed');
+            document.getElementById('continueToGameBtn').classList.remove('hidden');
+            playSound('swipeSound');
+            showToast("Role assigned!");
+        }
+
+        function enterGameplay() {
+            showScreen('gameScreen');
+            renderGamePlayers();
+        }
+
+        function renderGamePlayers() {
+            const container = document.getElementById('gamePlayers');
+            container.innerHTML = '';
+            state.players.forEach((p, i) => {
+                const el = document.createElement('div');
+                el.className = `player-chip ${i === 0 ? 'my-turn' : ''}`; // simulate turn
+                el.innerText = p.name;
+                container.appendChild(el);
+            });
+        }
+
+        let passCount = 0;
+        function passTurn() {
+            passCount++;
+            document.getElementById('passStatus').innerText = `${passCount}/2 passes to end turn`;
+            showToast("You passed the turn!");
+            
+            // Mock other player passing
+            if(passCount === 1) {
+                setTimeout(() => {
+                    passCount++;
+                    document.getElementById('passStatus').innerText = `${passCount}/2 passes to end turn`;
+                    showToast("Dave passed!");
+                    if(passCount >= 2) {
+                        setTimeout(() => endRoundMock(), 1000);
+                    }
+                }, 2000);
+            }
+        }
+
+        function voteTimeExtend() {
+            showToast("+15s Time Extension Proposed! Voting...");
+            setTimeout(() => showToast("Majority Agreed! Time Extended."), 2000);
+        }
+
+        function endRoundMock() {
+            showToast("Round Ended!");
+            document.getElementById('roundNum').innerText = "2";
+            passCount = 0;
+            document.getElementById('passStatus').innerText = `0/2 passes to end turn`;
+            // Rotate turn visual
+            const chips = document.querySelectorAll('#gamePlayers .player-chip');
+            chips.forEach(c => c.classList.remove('my-turn'));
+            if(chips.length > 1) chips[1].classList.add('my-turn');
+        }
+
+        function endGameMock() {
+            showScreen('voteScreen');
+            const vList = document.getElementById('votingList');
+            vList.innerHTML = '';
+            state.players.forEach(p => {
+                if(p.isMe) return; // Can't vote self
+                const btn = document.createElement('button');
+                btn.className = 'secondary';
+                btn.style.width = '100%';
+                btn.innerText = `Vote ${p.name}`;
+                btn.onclick = () => submitVote(p.name);
+                vList.appendChild(btn);
+            });
+        }
+
+        function submitVote(targetName) {
+            document.getElementById('votingList').innerHTML = '<h3 class="bounce">Votes locked in! 🔒</h3>';
+            setTimeout(() => {
+                document.getElementById('voteResults').classList.remove('hidden');
+                document.getElementById('imposterRevealText').innerText = `Dave was the Imposter! 😱`;
+                playSound('swipeSound');
+                sessionStorage.removeItem('inGame');
+                
+                // Add to history
+                const tbody = document.getElementById('historyTableBody');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>Just now</td><td>${state.role}</td><td>Win</td><td>+100</td>`;
+                tbody.prepend(tr);
+                
+            }, 2000);
+        }
+
+        // God Mode (FAQ 5 taps)
+        document.getElementById('faqBtn').addEventListener('click', () => {
+            state.faqTaps++;
+            if(state.faqTaps === 5) {
+                document.getElementById('gmRoom').innerText = state.roomCode || 'Not in room';
+                document.getElementById('godModeModal').classList.add('visible');
+                state.faqTaps = 0;
+            } else if (state.faqTaps === 1) {
+                showToast("FAQ: Describe the word without saying it!");
+                setTimeout(() => state.faqTaps = 0, 3000);
+            }
+        });
+
+        document.getElementById('godModeModal').addEventListener('click', (e) => {
+            if(e.target.id === 'godModeModal') {
+                e.target.classList.remove('visible');
+            }
+        });
+
+    </script>
+</body>
+</html>
