@@ -1,4 +1,4 @@
-import Peer, { DataConnection } from 'peerjs';
+import Peer, { type DataConnection } from 'peerjs';
 
 export type GameState = 'LOBBY' | 'ROLES' | 'PLAYING' | 'VOTING' | 'RESULTS';
 
