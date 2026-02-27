@@ -65,7 +65,8 @@ const firebaseConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL
 };
 
 const app = initializeApp(firebaseConfig);
@@ -384,6 +385,7 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Local UI State
+  const [, setHintClicks] = useState(0);
   const [showGodMode, setShowGodMode] = useState(false);
   const [chatMsg, setChatMsg] = useState('');
   const [revealedRole, setRevealedRole] = useState(false);
@@ -445,6 +447,16 @@ export default function App() {
       if (snap.exists()) {
         const rData = snap.data() as Room;
         setRoom(rData);
+
+        // Result calculation (Host only)
+        if (user.uid === rData.hostId && rData.state === 'voting') {
+          const totalPlayers = Object.keys(rData.players).length;
+          const currentVotes = Object.keys(rData.votes || {}).length;
+          if (currentVotes >= totalPlayers) {
+            calculateResults(rData);
+          }
+        }
+
         if (room && room.state !== rData.state && rData.state === 'lobby') {
            setRoomTime(0);
            setRevealedRole(false);
@@ -621,8 +633,15 @@ export default function App() {
   };
 
   const handleGodModeTrigger = () => {
-    setShowGodMode(true);
-    playSound('alert');
+    setHintClicks(c => {
+      const next = c + 1;
+      if (next >= 5) {
+        setShowGodMode(true);
+        playSound('alert');
+        return 0;
+      }
+      return next;
+    });
   };
 
   const passTurn = async (targetId: string) => {
@@ -637,7 +656,8 @@ export default function App() {
              [`players.${targetId}.passedTurn`]: newPassedBy
          });
          
-         if (newPassedBy.length >= 2) {
+         const totalPlayers = Object.keys(room.players).length;
+         if (newPassedBy.length > totalPlayers / 2) {
              nextTurn();
          }
      }
@@ -662,7 +682,12 @@ export default function App() {
      await updateDoc(rRef, {
          currentTurnIndex: nextIndex,
          round: nextRound,
-         state: nextState
+         state: nextState,
+         // Reset passedTurn for everyone on turn change
+         "players": Object.keys(room.players).reduce((acc, id) => ({
+           ...acc,
+           [id]: { ...room.players[id], passedTurn: [] }
+         }), {})
      });
   };
 
@@ -672,19 +697,12 @@ export default function App() {
      await updateDoc(rRef, {
          [`votes.${user.uid}`]: targetId
      });
-     
-     const totalPlayers = Object.keys(room.players).length;
-     const currentVotes = Object.keys(room.votes || {}).length + 1;
-     
-     if (currentVotes >= totalPlayers) {
-         calculateResults(targetId);
-     }
   };
 
-  const calculateResults = async (lastVoteTarget: string) => {
-      const rRef = doc(db, 'rooms', room!.id);
+  const calculateResults = async (rData: Room) => {
+      const rRef = doc(db, 'rooms', rData.id);
       
-      const allVotes = { ...room!.votes, [user!.uid]: lastVoteTarget };
+      const allVotes = rData.votes;
       const voteCounts: Record<string, number> = {};
       Object.values(allVotes).forEach(vId => {
           voteCounts[vId] = (voteCounts[vId] || 0) + 1;
@@ -701,24 +719,24 @@ export default function App() {
           }
       });
 
-      const imposterCaught = votedOutId === room!.imposterId;
-      const updatedPlayers = { ...room!.players };
+      const imposterCaught = votedOutId === rData.imposterId;
+      const updatedPlayers = { ...rData.players };
       
       let winMsg = "";
       if (imposterCaught) {
           winMsg = "Crew Wins! The Imposter was caught!";
           Object.keys(updatedPlayers).forEach(pId => {
-              if (pId !== room!.imposterId) updatedPlayers[pId].score += 10;
+              if (pId !== rData.imposterId) updatedPlayers[pId].score += 10;
           });
       } else {
-          winMsg = `Imposter Wins! They evaded capture. (It was ${room!.players[room!.imposterId]?.name})`;
-          updatedPlayers[room!.imposterId].score += 20;
+          winMsg = `Imposter Wins! They evaded capture. (It was ${rData.players[rData.imposterId]?.name})`;
+          updatedPlayers[rData.imposterId].score += 20;
       }
 
       const historyEntry: HistoryEntry = {
           date: new Date().toISOString(),
-          imposter: room!.players[room!.imposterId]?.name,
-          word: room!.word,
+          imposter: rData.players[rData.imposterId]?.name,
+          word: rData.word,
           result: winMsg,
           duration: roomTime
       };
@@ -950,8 +968,20 @@ export default function App() {
                             <div key={pId} className={`flex items-center gap-2 px-4 py-2 rounded-xl border-4 font-bold transition-all ${isCurrent ? 'bg-yellow-400 border-black animate-blink scale-110 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-black' : 'bg-white border-slate-400 scale-90 opacity-70'}`}>
                               {isCurrent && <span className="text-xl">👉</span>}
                               <span>{pName} {pId === user!.uid && '(You)'}</span>
-                              {isCurrent && pId !== user!.uid && <button onClick={() => passTurn(pId)} className="ml-2 bg-red-400 text-black text-xs border-2 border-black rounded px-2 py-1">PASS</button>}
-                              {isCurrent && pId === user!.uid && <button onClick={() => nextTurn()} className="ml-2 bg-lime-400 text-black text-xs border-2 border-black rounded px-2 py-1">DONE</button>}
+                              
+                              {isCurrent && (
+                                <div className="ml-2 flex items-center gap-2">
+                                  <span className="text-xs bg-black/10 px-2 py-1 rounded-full">
+                                    {room.players[pId].passedTurn?.length || 0} / {Math.floor(Object.keys(room.players).length / 2) + 1}
+                                  </span>
+                                  {pId !== user!.uid && !room.players[pId].passedTurn?.includes(user!.uid) && (
+                                    <button onClick={() => passTurn(pId)} className="bg-red-400 text-black text-xs border-2 border-black rounded px-2 py-1">PASS</button>
+                                  )}
+                                  {pId === user!.uid && !room.players[pId].passedTurn?.includes(user!.uid) && (
+                                    <button onClick={() => passTurn(pId)} className="bg-lime-400 text-black text-xs border-2 border-black rounded px-2 py-1">DONE</button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -968,10 +998,28 @@ export default function App() {
                          const hasVotedMe = room.votes[user!.uid] === id;
                          const voteCount = Object.values(room.votes).filter(v => v === id).length;
                          return (
-                           <button key={id} onClick={() => castVote(id)} className={`flex flex-col items-center justify-center p-4 border-4 border-black rounded-xl font-black text-lg transition-all ${hasVotedMe ? 'bg-lime-400 shadow-[inset_4px_4px_0px_rgba(0,0,0,0.2)] translate-y-1' : 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1'}`}>
-                             <div>{p.name}</div>
-                             <div className="text-xs bg-black text-white rounded-full px-2 py-1 inline-block mt-2">Votes: {voteCount}</div>
-                           </button>
+                           <div key={id} className="relative">
+                             <button
+                               onClick={() => castVote(id)}
+                               className={`w-full flex flex-col items-center justify-center p-4 border-4 border-black rounded-xl font-black text-lg transition-all ${hasVotedMe ? 'bg-lime-400 shadow-[inset_4px_4px_0px_rgba(0,0,0,0.2)] translate-y-1' : 'bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1'}`}
+                             >
+                               <div>{p.name}</div>
+                               <div className="text-xs bg-black text-white rounded-full px-2 py-1 inline-block mt-2">Votes: {voteCount}</div>
+                               
+                               {voteCount > 0 && (
+                                 <div className="mt-2 flex flex-wrap justify-center gap-1">
+                                   {Object.entries(room.votes)
+                                     .filter(([_, votedId]) => votedId === id)
+                                     .map(([voterId, _]) => (
+                                       <span key={voterId} className="text-[10px] bg-black/10 px-1 rounded uppercase">
+                                         {room.players[voterId]?.name}
+                                       </span>
+                                     ))
+                                   }
+                                 </div>
+                               )}
+                             </button>
+                           </div>
                          );
                        })}
                      </div>
