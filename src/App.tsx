@@ -894,11 +894,26 @@ export default function App() {
           ) : (
             <div className="flex flex-col lg:flex-row gap-6 w-full max-w-6xl mx-auto">
               <div className="flex-1 flex flex-col gap-6">
-                <div className="bg-black dark:bg-slate-800 text-white p-3 rounded-2xl border-4 border-fuchsia-500 flex justify-between items-center shadow-[4px_4px_0px_0px_rgba(217,70,239,1)]">
-                  <div className="flex items-center gap-4">
-                    <span className="font-black text-xl bg-fuchsia-500 text-black px-3 py-1 rounded-xl uppercase">ROOM: {room.id}</span>
+                {/* STATUS BAR */}
+                <div className="flex flex-col gap-2">
+                  <div className="bg-black dark:bg-slate-800 text-white p-3 rounded-2xl border-4 border-fuchsia-500 flex justify-between items-center shadow-[4px_4px_0px_0px_rgba(217,70,239,1)]">
+                    <div className="flex items-center gap-4">
+                      <span className="font-black text-xl bg-fuchsia-500 text-black px-3 py-1 rounded-xl uppercase">ROOM: {room.id}</span>
+                    </div>
+                    <button onClick={leaveRoom} className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1"><Home size={18} /> LEAVE</button>
                   </div>
-                  <button onClick={leaveRoom} className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1"><Home size={18} /> LEAVE</button>
+                  
+                  {/* Match Feed / System Log */}
+                  <div className="bg-slate-800/50 border-2 border-black rounded-xl p-2 flex items-center gap-2 overflow-hidden h-10">
+                    <span className="text-[10px] font-black bg-yellow-400 text-black px-2 py-0.5 rounded uppercase flex-shrink-0 animate-pulse">FEED:</span>
+                    <div className="flex-1 overflow-hidden">
+                      <div className="whitespace-nowrap animate-[scroll_20s_linear_infinite] hover:pause text-xs font-bold text-slate-300">
+                        {room.chats?.filter(c => c.sender === 'System').slice(-3).map((c, i) => (
+                          <span key={i} className="mr-8 italic">⚡ {c.msg}</span>
+                        )) || "Waiting for action..."}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {room.state === 'lobby' && (
@@ -1046,25 +1061,78 @@ export default function App() {
               </div>
 
               <div className="w-full lg:w-80 flex flex-col gap-6">
-                <NeoPanel color="bg-white dark:bg-slate-800" className="flex-1 min-h-[450px] max-h-[600px] flex flex-col p-4 !pb-2">
-                  <h3 className="font-black uppercase border-b-4 border-black pb-2 mb-2 flex gap-2"><MessageSquare /> Secret DM</h3>
-                  <div className="flex overflow-x-auto gap-2 mb-2 pb-2 scrollbar-hide">
-                     {Object.keys(room.players).filter(id => id !== user!.uid).map(pId => (
-                        <button key={pId} onClick={() => setSelectedChatUser(pId)} className={`whitespace-nowrap px-3 py-1 border-2 border-black rounded-full text-xs font-bold transition-all ${selectedChatUser === pId ? 'bg-lime-400 scale-105' : 'bg-slate-100 dark:bg-slate-700'}`}>{room.players[pId].name}</button>
-                     ))}
+                <NeoPanel color="bg-white dark:bg-slate-800" className="flex-1 min-h-[500px] max-h-[650px] flex flex-col p-4 !pb-2">
+                  <h3 className="font-black uppercase border-b-4 border-black pb-2 mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare /> Secret DM
+                    </div>
+                    {selectedChatUser && (
+                      <span className="text-[10px] bg-fuchsia-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+                        TO: {room.players[selectedChatUser]?.name}
+                      </span>
+                    )}
+                  </h3>
+                  
+                  {/* Player Contact List */}
+                  <div className="flex flex-col gap-2 mb-4 overflow-y-auto max-h-32 p-1 border-b-2 border-slate-200 dark:border-slate-700">
+                     <span className="text-[10px] font-black uppercase opacity-50">Select Player:</span>
+                     <div className="flex flex-wrap gap-2">
+                        {Object.keys(room.players).filter(id => id !== user!.uid).map(pId => (
+                           <button 
+                              key={pId} 
+                              onClick={() => { playSound('click'); setSelectedChatUser(pId); }} 
+                              className={`px-3 py-1 border-2 border-black rounded-xl text-xs font-bold transition-all ${selectedChatUser === pId ? 'bg-lime-400 shadow-[2px_2px_0px_rgba(0,0,0,1)] scale-105' : 'bg-slate-100 dark:bg-slate-700 opacity-70 hover:opacity-100'}`}
+                           >
+                              {room.players[pId].name}
+                           </button>
+                        ))}
+                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-4 pr-2 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 border-2 border-slate-200 shadow-inner">
-                    {room.chats?.filter(c => c.sender === 'System' || (c.senderId === user!.uid && c.recipientId === selectedChatUser) || (c.senderId === selectedChatUser && c.recipientId === user!.uid)).map((c, i) => (
-                      <div key={i} className={`flex flex-col ${c.sender === 'System' ? 'items-center' : c.senderId === user!.uid ? 'items-end' : 'items-start'} w-full`}>
-                        {c.sender !== 'System' && <span className="text-[10px] opacity-60 mb-0.5">{c.senderId === user!.uid ? 'You' : c.sender}</span>}
-                        <div className={`p-2.5 rounded-2xl border-2 border-black text-sm font-bold w-max max-w-[85%] break-words ${c.sender === 'System' ? 'bg-yellow-200' : c.senderId === user!.uid ? 'bg-lime-300' : 'bg-purple-300'}`}>{c.msg}</div>
+
+                  {/* DM Chat Area */}
+                  <div className="flex-1 overflow-y-auto flex flex-col gap-3 mb-4 pr-2 bg-slate-50 dark:bg-slate-900 rounded-xl p-3 border-2 border-slate-200 dark:border-slate-700 shadow-inner">
+                    {!selectedChatUser ? (
+                      <div className="h-full flex items-center justify-center text-center p-4">
+                        <p className="font-bold text-xs opacity-40 uppercase">Pick a player above to start a secret conversation...</p>
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        {room.chats?.filter(c => 
+                            (c.senderId === user!.uid && c.recipientId === selectedChatUser) || 
+                            (c.senderId === selectedChatUser && c.recipientId === user!.uid)
+                        ).map((c, i) => {
+                          const isMe = c.senderId === user!.uid;
+                          return (
+                            <div key={i} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} w-full`}>
+                              <div className={`p-2.5 rounded-2xl border-2 border-black text-sm font-bold w-max max-w-[85%] break-words ${isMe ? 'bg-lime-300' : 'bg-purple-300'}`}>
+                                {c.msg}
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {room.chats?.filter(c => 
+                            (c.senderId === user!.uid && c.recipientId === selectedChatUser) || 
+                            (c.senderId === selectedChatUser && c.recipientId === user!.uid)
+                        ).length === 0 && (
+                          <div className="text-center opacity-30 text-[10px] font-bold mt-4 uppercase italic">No messages yet. Stay sneaky!</div>
+                        )}
+                      </>
+                    )}
                     <div ref={chatEndRef} />
                   </div>
+
                   <form onSubmit={sendChat} className="flex gap-2">
-                    <input type="text" value={chatMsg} onChange={e => setChatMsg(e.target.value)} disabled={!selectedChatUser} className="flex-1 border-4 border-black rounded-xl px-3 py-2 font-bold bg-white dark:bg-slate-900 text-black dark:text-white" placeholder="Secret msg..." />
-                    <NeoButton color="bg-cyan-400" disabled={!selectedChatUser} className="!px-4 !py-2"><Send size={18}/></NeoButton>
+                    <input 
+                      type="text" 
+                      value={chatMsg} 
+                      onChange={e => setChatMsg(e.target.value)} 
+                      disabled={!selectedChatUser} 
+                      className="flex-1 border-4 border-black rounded-xl px-3 py-2 font-bold bg-white dark:bg-slate-900 text-black dark:text-white focus:outline-none focus:ring-4 focus:ring-fuchsia-400 disabled:opacity-50" 
+                      placeholder={selectedChatUser ? `Secret to ${room.players[selectedChatUser]?.name}...` : "Select a player..."} 
+                    />
+                    <NeoButton color="bg-cyan-400" disabled={!selectedChatUser} className="!px-4 !py-2">
+                      <Send size={18}/>
+                    </NeoButton>
                   </form>
                 </NeoPanel>
 

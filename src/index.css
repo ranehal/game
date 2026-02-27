@@ -48,6 +48,20 @@ body {
   animation: wobble 0.5s ease-in-out infinite;
 }
 
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
 .animate-blink {
   animation: blink 1.5s infinite;
+}
+
+@keyframes scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.pause {
+  animation-play-state: paused;
 }
