@@ -468,11 +468,7 @@ export default function App() {
         }
 
         const others = Object.keys(rData.players).filter(id => id !== user.uid);
-        if (others.length > 0) {
-            setSelectedChatUser(prev => prev && others.includes(prev) ? prev : others[0]);
-        } else {
-            setSelectedChatUser(null);
-        }
+        setSelectedChatUser(prev => (prev && others.includes(prev)) ? prev : null);
       } else {
         setRoom(null);
       }
