@@ -8,8 +8,16 @@ import {
 } from 'firebase/firestore';
 import { 
   Users, Copy, Play, SkipForward, MessageSquare, HelpCircle, 
-  Settings, History, Clock, Skull, Eye, Moon, Sun, Send, Home, UserCheck, Link, LogOut, Trophy
+  Settings, History, Clock, Skull, Eye, Moon, Sun, Send, Home, UserCheck, Link, LogOut, Share2
 } from 'lucide-react';
+
+const INITIAL_STATS: UserStats = {
+  totalGames: 0,
+  wins: 0,
+  imposterWins: 0,
+  correctVotes: 0,
+  totalVotes: 0
+};
 
 // --- TYPES ---
 interface Player {
@@ -18,6 +26,7 @@ interface Player {
   lastScoreGain: number;
   role: string;
   isReady: boolean;
+  isRoleRevealed: boolean;
   passedTurn: string[];
 }
 
@@ -55,9 +64,19 @@ interface Room {
   historyLog: HistoryEntry[];
 }
 
+interface UserStats {
+  totalGames: number;
+  wins: number;
+  imposterWins: number;
+  correctVotes: number;
+  totalVotes: number;
+}
+
 interface UserProfile {
   name: string;
   history: string[];
+  pass?: string;
+  stats: UserStats;
 }
 
 // --- FIREBASE SETUP ---
@@ -367,10 +386,114 @@ const MonteCards = ({ onSelectCard }: any) => {
   )
 };
 
+function ResultScreen({ room, user, resetGame, shareResults }: { room: Room, user: User, resetGame: () => void, shareResults: () => void }) {
+  const [stage, setStage] = useState<'SUSPENSE' | 'REVEAL' | 'SCORES'>('SUSPENSE');
+
+  useEffect(() => {
+    playSound('alert');
+    const timer1 = setTimeout(() => setStage('REVEAL'), 3000);
+    const timer2 = setTimeout(() => {
+      setStage('SCORES');
+      playSound('reveal');
+    }, 6000);
+    return () => { clearTimeout(timer1); clearTimeout(timer2); };
+  }, []);
+
+  return (
+    <NeoPanel color="bg-orange-200 dark:bg-orange-900" className="flex flex-col gap-6 items-center text-center relative overflow-hidden min-h-[70vh] justify-center">
+      {stage === 'SUSPENSE' && (
+        <div className="animate-pulse">
+          <Skull size={120} className="text-black mb-8 animate-suspense" />
+          <h2 className="text-6xl font-black funky-font uppercase text-white drop-shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+            Tallying Votes...
+          </h2>
+        </div>
+      )}
+
+      {stage === 'REVEAL' && (
+        <div className="animate-float">
+          <p className="text-2xl font-black uppercase mb-4 opacity-60">The Imposter{room.imposterIds.length > 1 ? 's were' : ' was'}</p>
+          <div className="flex flex-wrap justify-center gap-6">
+            {room.imposterIds.map(id => (
+              <div key={id} className="bg-red-600 text-white border-8 border-black p-8 rounded-[40px] shadow-[20px_20px_0px_rgba(0,0,0,1)] animate-bounce">
+                <Skull size={48} className="mx-auto mb-4" />
+                <h3 className="text-5xl font-black funky-font uppercase">{room.players[id]?.name}</h3>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {stage === 'SCORES' && (
+        <div className="w-full max-w-4xl animate-[vote-pop_0.5s_ease-out]">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-5xl font-black funky-font uppercase text-white drop-shadow-[4px_4px_0px_rgba(0,0,0,1)]">GAME OVER</h2>
+            <NeoButton onClick={shareResults} color="bg-blue-400" className="!py-2 !px-4 !text-xs">
+              <Share2 size={16}/> SHARE
+            </NeoButton>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 border-4 border-black p-6 rounded-3xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_rgba(255,255,255,0.1)]">
+            <div className="mb-8 p-4 bg-lime-100 dark:bg-lime-950 border-4 border-lime-600 rounded-2xl">
+              <p className="font-bold text-lg uppercase opacity-60">Secret Word</p>
+              <p className="text-4xl font-black text-lime-600 uppercase tracking-widest">{room.word}</p>
+            </div>
+
+            <div className="overflow-x-auto">
+               <table className="w-full text-sm font-bold">
+                 <thead>
+                   <tr className="border-b-4 border-black/20 text-[10px] uppercase opacity-60">
+                     <th className="text-left pb-4">Player</th>
+                     <th className="text-center pb-4">Role</th>
+                     <th className="text-right pb-4">Gained</th>
+                     <th className="text-right pb-4">Total</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {Object.entries(room.players).sort((a,b)=> b[1].score - a[1].score).map(([id, p]) => {
+                     const isImposter = room.imposterIds.includes(id);
+                     return (
+                       <tr key={id} className="border-b-2 border-black/10">
+                         <td className="py-4 text-left flex items-center gap-2">
+                           <div className={`w-8 h-8 rounded-full border-2 border-black flex items-center justify-center text-xs ${isImposter ? 'bg-red-500' : 'bg-blue-500'} text-white`}>
+                             {p.name.charAt(0)}
+                           </div>
+                           {p.name} {id === user!.uid && <span className="text-[8px] bg-fuchsia-500 text-white px-1 rounded">YOU</span>}
+                         </td>
+                         <td className="py-4">
+                           <span className={`px-2 py-1 rounded-lg text-[10px] border-2 border-black uppercase font-black ${isImposter ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                             {isImposter ? 'Imposter' : 'Crew'}
+                           </span>
+                         </td>
+                         <td className="py-4 text-right">
+                           <span className={`text-lg ${p.lastScoreGain > 0 ? 'text-emerald-500' : p.lastScoreGain < 0 ? 'text-red-500' : 'opacity-30'}`}>
+                             {p.lastScoreGain > 0 ? `+${p.lastScoreGain}` : p.lastScoreGain}
+                           </span>
+                         </td>
+                         <td className="py-4 text-right text-2xl font-black">{p.score}</td>
+                       </tr>
+                     );
+                   })}
+                 </tbody>
+               </table>
+            </div>
+          </div>
+
+          {user.uid === room.hostId && (
+            <NeoButton color="bg-lime-400" className="text-2xl mt-8 w-full shadow-[10px_10px_0px_rgba(0,0,0,1)]" onClick={resetGame}>
+              <Play fill="currentColor"/> PLAY AGAIN
+            </NeoButton>
+          )}
+        </div>
+      )}
+    </NeoPanel>
+  );
+}
+
 // --- MAIN APP COMPONENT ---
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile>({ name: '', history: [] });
+  const [profile, setProfile] = useState<UserProfile>({ name: '', history: [], stats: INITIAL_STATS });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nameInput, setNameInput] = useState('');
@@ -390,7 +513,6 @@ export default function App() {
   const [, setHintClicks] = useState(0);
   const [showGodMode, setShowGodMode] = useState(false);
   const [chatMsg, setChatMsg] = useState('');
-  const [revealedRole, setRevealedRole] = useState(false);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [isImposterTheme, setIsImposterTheme] = useState(false);
@@ -420,25 +542,38 @@ export default function App() {
         const pRef = doc(db, 'users', u.uid);
         const pSnap = await getDoc(pRef);
         if (pSnap.exists()) {
-          setProfile(pSnap.data() as UserProfile);
-          setNameInput((pSnap.data() as UserProfile).name || '');
+          const data = pSnap.data() as UserProfile;
+          setProfile({
+            ...data,
+            stats: data.stats || INITIAL_STATS
+          });
+          setNameInput(data.name || '');
         }
       } else {
-        setProfile({ name: '', history: [] });
+        setProfile({ name: '', history: [], stats: INITIAL_STATS });
       }
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
-  // URL checking for direct join
+  // URL checking for direct join or persistence
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const rId = urlParams.get('room');
+    const rId = urlParams.get('room') || localStorage.getItem('imposter_keda_room');
     if (rId && !roomId) {
       setRoomId(rId);
     }
   }, []);
+
+  // Sync Room ID to localStorage
+  useEffect(() => {
+    if (roomId) {
+      localStorage.setItem('imposter_keda_room', roomId);
+    } else {
+      localStorage.removeItem('imposter_keda_room');
+    }
+  }, [roomId]);
 
   // Room Listener
   useEffect(() => {
@@ -461,10 +596,9 @@ export default function App() {
 
         if (room && room.state !== rData.state && rData.state === 'lobby') {
            setRoomTime(0);
-           setRevealedRole(false);
            setIsImposterTheme(false);
         }
-        if (rData.state === 'playing' && revealedRole) {
+        if (rData.state === 'playing' && rData.players[user.uid]?.isRoleRevealed) {
            const myRole = rData.players[user.uid]?.role;
            setIsImposterTheme(myRole === 'Imposter');
         }
@@ -477,7 +611,7 @@ export default function App() {
     }, (error) => console.error("Room sync error:", error));
 
     return () => unsub();
-  }, [user, roomId, revealedRole]);
+  }, [user, roomId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -496,7 +630,8 @@ export default function App() {
         await setDoc(pRef, { 
           name: nameInput, 
           history: [nameInput],
-          pass: btoa(password) 
+          pass: btoa(password),
+          stats: INITIAL_STATS
         });
       } else {
         const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -535,7 +670,7 @@ export default function App() {
       round: 1,
       maxRounds: 3,
       players: {
-        [user.uid]: { name: profile.name, score: 0, lastScoreGain: 0, role: '', isReady: false, passedTurn: [] }
+        [user.uid]: { name: profile.name, score: 0, lastScoreGain: 0, role: '', isReady: false, isRoleRevealed: false, passedTurn: [] }
       },
       turnOrder: [],
       currentTurnIndex: 0,
@@ -561,7 +696,7 @@ export default function App() {
     const snap = await getDoc(rRef);
     if (snap.exists()) {
       await updateDoc(rRef, {
-        [`players.${user.uid}`]: { name: profile.name, score: 0, lastScoreGain: 0, role: '', isReady: false, passedTurn: [] }
+        [`players.${user.uid}`]: { name: profile.name, score: 0, lastScoreGain: 0, role: '', isReady: false, isRoleRevealed: false, passedTurn: [] }
       });
       setRoomId(idToJoin);
       setRoomTime(0);
@@ -611,6 +746,7 @@ export default function App() {
     pIds.forEach(id => {
       updatedPlayers[id].role = imposterIds.includes(id) ? 'Imposter' : 'Crew';
       updatedPlayers[id].passedTurn = [];
+      updatedPlayers[id].isRoleRevealed = false;
     });
 
     await updateDoc(rRef, {
@@ -734,23 +870,61 @@ export default function App() {
       // Reset gains
       Object.keys(updatedPlayers).forEach(id => updatedPlayers[id].lastScoreGain = 0);
 
+      // Scoring Logic
+      const majorityCount = Math.floor(Object.keys(rData.players).length / 2) + 1;
+
+      Object.entries(updatedPlayers).forEach(([id]) => {
+        let gain = 0;
+        const myVote = rData.votes[id];
+        const isCorrectVote = myVote && rData.imposterIds.includes(myVote);
+        const isImposter = rData.imposterIds.includes(id);
+
+        if (!isImposter) {
+          if (isCorrectVote) gain += 2;
+          else if (myVote) gain -= 1;
+          
+          if (votedOutId && rData.votes[id] === votedOutId && voteCounts[votedOutId] >= majorityCount) {
+            gain += 1; // Majority bonus
+          }
+        } else {
+          // Imposter survival
+          if (!isImposterCaught) gain += 3;
+        }
+
+        updatedPlayers[id].lastScoreGain = gain;
+        updatedPlayers[id].score += gain;
+      });
+
       let winMsg = "";
       if (isImposterCaught) {
           winMsg = `Crew Wins! The Imposter (${rData.players[votedOutId!].name}) was caught!`;
-          Object.keys(updatedPlayers).forEach(pId => {
-              if (!rData.imposterIds.includes(pId)) {
-                updatedPlayers[pId].score += 10;
-                updatedPlayers[pId].lastScoreGain = 10;
-              }
-          });
       } else {
           const names = rData.imposterIds.map(id => rData.players[id]?.name).join(', ');
           winMsg = `Imposter Wins! They evaded capture. (It was ${names})`;
-          rData.imposterIds.forEach(id => {
-              updatedPlayers[id].score += 20;
-              updatedPlayers[id].lastScoreGain = 20;
-          });
       }
+
+      // Update All-time Stats (Async)
+      Object.keys(updatedPlayers).forEach(async (id) => {
+        const isImposter = rData.imposterIds.includes(id);
+        const myVote = rData.votes[id];
+        const isCorrectVote = myVote && rData.imposterIds.includes(myVote);
+        const didWin = isImposter ? !isImposterCaught : isImposterCaught;
+
+        const uRef = doc(db, 'users', id);
+        const uSnap = await getDoc(uRef);
+        if (uSnap.exists()) {
+          const currentStats = (uSnap.data() as UserProfile).stats || INITIAL_STATS;
+          await updateDoc(uRef, {
+            stats: {
+              totalGames: currentStats.totalGames + 1,
+              wins: currentStats.wins + (didWin ? 1 : 0),
+              imposterWins: currentStats.imposterWins + (isImposter && didWin ? 1 : 0),
+              totalVotes: currentStats.totalVotes + (myVote ? 1 : 0),
+              correctVotes: currentStats.correctVotes + (isCorrectVote ? 1 : 0)
+            }
+          });
+        }
+      });
 
       const historyEntry: HistoryEntry = {
           date: new Date().toISOString(),
@@ -780,7 +954,22 @@ export default function App() {
          turnOrder: [],
          currentTurnIndex: 0
      });
-     setRevealedRole(false);
+  };
+
+  const shareResults = () => {
+    if (!room) return;
+    const text = `🎮 Just played Imposter Keda!\n🏆 Result: ${room.historyLog[room.historyLog.length-1]?.result}\n🕵️ Word: ${room.word}\n🔥 My Score: ${room.players[user!.uid]?.score}\nPlay here: ${window.location.href}`;
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'Imposter Keda Results',
+        text: text,
+        url: window.location.href
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(text);
+      alert('Results copied to clipboard!');
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -893,9 +1082,34 @@ export default function App() {
           ) : !room ? (
             <div className="flex flex-col gap-8 items-center mt-10">
               <div className="text-center w-full max-w-md">
-                 <h2 className="text-xl font-bold opacity-70">Logged in as,</h2>
-                 <p className="text-4xl font-black text-fuchsia-500 uppercase funky-font">{profile.name}</p>
-                 <button onClick={handleLogout} className="text-xs font-bold underline mt-2 flex items-center gap-1 mx-auto text-red-500">
+                 <h2 className="text-xl font-bold opacity-70 uppercase tracking-widest">Logged in as</h2>
+                 <p className="text-5xl font-black text-fuchsia-500 uppercase funky-font drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">{profile.name}</p>
+                 
+                 {/* All-time Stats Grid */}
+                 <div className="grid grid-cols-2 gap-4 mt-6">
+                    <div className="bg-white dark:bg-slate-800 border-4 border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <p className="text-[10px] font-black uppercase opacity-50">Win Rate</p>
+                      <p className="text-2xl font-black text-emerald-500">
+                        {profile.stats.totalGames > 0 ? Math.round((profile.stats.wins / profile.stats.totalGames) * 100) : 0}%
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 border-4 border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <p className="text-[10px] font-black uppercase opacity-50">Accuracy</p>
+                      <p className="text-2xl font-black text-blue-500">
+                        {profile.stats.totalVotes > 0 ? Math.round((profile.stats.correctVotes / profile.stats.totalVotes) * 100) : 0}%
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 border-4 border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <p className="text-[10px] font-black uppercase opacity-50">Games</p>
+                      <p className="text-2xl font-black">{profile.stats.totalGames}</p>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 border-4 border-black p-3 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                      <p className="text-[10px] font-black uppercase opacity-50">Imp Win</p>
+                      <p className="text-2xl font-black text-red-500">{profile.stats.imposterWins}</p>
+                    </div>
+                 </div>
+
+                 <button onClick={handleLogout} className="text-xs font-bold underline mt-6 flex items-center gap-1 mx-auto text-red-500 hover:scale-110 transition-transform">
                    <LogOut size={12}/> Logout
                  </button>
               </div>
@@ -992,10 +1206,13 @@ export default function App() {
                   <NeoPanel color={isImposterTheme ? "bg-red-900 border-red-500" : "bg-white dark:bg-slate-800"} className="flex flex-col gap-6 transition-colors duration-1000">
                     <div className="text-center flex flex-col items-center gap-4">
                       <h2 className={`text-2xl font-black uppercase ${isImposterTheme ? 'text-red-200' : ''}`}>Round {room.round} of {room.maxRounds}</h2>
-                      {!revealedRole ? (
+                      {!room.players[user!.uid]?.isRoleRevealed ? (
                         <div className="w-full max-w-sm bg-slate-800 p-6 rounded-3xl border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                           <h3 className="text-white font-black text-2xl mb-2 uppercase funky-font">Who are you?</h3>
-                          <MonteCards onSelectCard={() => setRevealedRole(true)} />
+                          <MonteCards onSelectCard={async () => {
+                            const rRef = doc(db, 'rooms', room.id);
+                            await updateDoc(rRef, { [`players.${user.uid}.isRoleRevealed`]: true });
+                          }} />
                         </div>
                       ) : (
                         <div className={`p-8 rounded-3xl border-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] w-full max-w-md animate-float ${isImposterTheme ? 'bg-red-950 border-red-600 shadow-red-950/50' : 'bg-cyan-100 dark:bg-cyan-900 border-black'}`}>
@@ -1115,68 +1332,7 @@ export default function App() {
                 )}
 
                 {room.state === 'result' && (
-                  <NeoPanel color="bg-orange-200 dark:bg-orange-900" className="flex flex-col gap-6 items-center text-center animate-float">
-                    <Skull size={64} className="animate-bounce mb-2 text-red-600" />
-                    <h2 className="text-5xl font-black uppercase funky-font drop-shadow-[3px_3px_0px_rgba(0,0,0,1)] text-white">GAME OVER</h2>
-                    
-                    <div className="bg-white dark:bg-slate-800 border-4 border-black p-6 rounded-3xl w-full max-w-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] dark:shadow-[8px_8px_0px_0px_rgba(255,255,255,0.1)]">
-                      <div className="mb-8">
-                        <p className="text-xl font-bold uppercase opacity-60 mb-2">The Imposter{room.imposterIds.length > 1 ? 's were' : ' was'}</p>
-                        <div className="flex flex-wrap justify-center gap-4">
-                          {room.imposterIds.map(id => (
-                            <div key={id} className="bg-red-100 dark:bg-red-950 border-4 border-red-600 px-6 py-3 rounded-2xl animate-pulse">
-                              <p className="text-3xl font-black text-red-600 uppercase">{room.players[id]?.name}</p>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="mt-4 font-bold text-lg">Secret Word: <span className="text-lime-600 dark:text-lime-400 uppercase text-2xl">{room.word}</span></p>
-                      </div>
-
-                      <div className="bg-slate-100 dark:bg-slate-900 p-4 rounded-xl border-4 border-black text-left overflow-x-auto">
-                         <h3 className="font-black text-xl mb-4 border-b-4 border-black pb-2 uppercase flex items-center gap-2"><Trophy size={20}/> Scoreboard Breakdown</h3>
-                         <table className="w-full text-sm font-bold">
-                           <thead>
-                             <tr className="border-b-2 border-black/20 text-[10px] uppercase opacity-60">
-                               <th className="text-left pb-2">Player</th>
-                               <th className="text-center pb-2">Role</th>
-                               <th className="text-center pb-2">Voted For</th>
-                               <th className="text-right pb-2">Gained</th>
-                               <th className="text-right pb-2">Total</th>
-                             </tr>
-                           </thead>
-                           <tbody>
-                             {Object.entries(room.players).sort((a,b)=> b[1].score - a[1].score).map(([id, p]) => {
-                               const votedForId = room.votes[id];
-                               const votedForName = votedForId ? room.players[votedForId]?.name : 'None';
-                               const isImposter = room.imposterIds.includes(id);
-                               return (
-                                 <tr key={id} className="border-b border-black/10">
-                                   <td className="py-3 flex items-center gap-2">
-                                     {p.name} {id === user!.uid && <span className="text-[8px] bg-fuchsia-500 text-white px-1 rounded">YOU</span>}
-                                   </td>
-                                   <td className="text-center py-3">
-                                     <span className={`px-2 py-0.5 rounded text-[10px] uppercase ${isImposter ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>
-                                       {isImposter ? 'Imposter' : 'Crew'}
-                                     </span>
-                                   </td>
-                                   <td className="text-center py-3 opacity-70">
-                                     {votedForName}
-                                   </td>
-                                   <td className="text-right py-3 font-black text-emerald-600 dark:text-emerald-400">
-                                     +{p.lastScoreGain}
-                                   </td>
-                                   <td className="text-right py-3 font-black text-lg">
-                                     {p.score}
-                                   </td>
-                                 </tr>
-                               );
-                             })}
-                           </tbody>
-                         </table>
-                      </div>
-                    </div>
-                    {user.uid === room.hostId && <NeoButton color="bg-lime-400" className="text-2xl mt-4 w-full max-w-md shadow-[10px_10px_0px_rgba(0,0,0,1)]" onClick={resetGame}><Play fill="currentColor"/> PLAY AGAIN</NeoButton>}
-                  </NeoPanel>
+                  <ResultScreen room={room} user={user!} resetGame={resetGame} shareResults={shareResults} />
                 )}
               </div>
 
